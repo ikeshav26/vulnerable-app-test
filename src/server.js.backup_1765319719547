@@ -37,14 +37,7 @@ app.post('/login', (req, res) => {
 app.get('/user/:id', (req, res) => {
   const userId = req.params.id;
 
-  // FIX: Add input validation for userId
-  const parsedUserId = parseInt(userId, 10);
-  if (isNaN(parsedUserId) || !Number.isInteger(parsedUserId) || parsedUserId <= 0) {
-    return res.status(400).json({ error: 'Invalid user ID. Must be a positive integer.' });
-  }
-
-  // Use the validated and parsed userId
-  const query = `SELECT * FROM users WHERE id = ${parsedUserId}`;
+  const query = `SELECT * FROM users WHERE id = ${userId}`;
 
   db.query(query, (err, results) => {
     if (err) {
@@ -58,14 +51,7 @@ app.get('/user/:id', (req, res) => {
 app.delete('/user/:id', (req, res) => {
   const userId = req.params.id;
 
-  // FIX: Add input validation for userId
-  const parsedUserId = parseInt(userId, 10);
-  if (isNaN(parsedUserId) || !Number.isInteger(parsedUserId) || parsedUserId <= 0) {
-    return res.status(400).json({ error: 'Invalid user ID. Must be a positive integer.' });
-  }
-
-  // Use the validated and parsed userId
-  const query = `DELETE FROM users WHERE id = ${parsedUserId}`;
+  const query = `DELETE FROM users WHERE id = ${userId}`;
 
   db.query(query, (err, results) => {
     if (err) {
