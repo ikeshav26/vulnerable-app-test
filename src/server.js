@@ -1,82 +1,90 @@
 const express = require('express');
 const mysql = require('mysql');
+require('dotenv').config();
 
 const app = express();
 app.use(express.json());
 
-// VULNERABILITY 1: SQL Injection
 const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: 'password123', // VULNERABILITY 2: Hardcoded credentials
-  database: 'users_db',
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_DATABASE || 'users_db',
 });
 
-// VULNERABILITY 3: SQL Injection in login
+db.connect(err => {
+  if (err) {
+    return;
+  }
+});
+
 app.post('/login', (req, res) => {
   const { username, password } = req.body;
 
-  // Dangerous: Direct string concatenation in SQL query
-  const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
+  if (!username || typeof username !== 'string' || username.length < 3 || username.length > 50) {
+    return res.status(400).json({ error: 'Invalid username. Must be 3-50 characters.' });
+  }
+  if (!password || typeof password !== 'string' || password.length < 6 || password.length > 100) {
+    return res.status(400).json({ error: 'Invalid password. Must be 6-100 characters.' });
+  }
 
-  db.query(query, (err, results) => {
+  const query = `SELECT id, username FROM users WHERE username = ? AND password = ?`;
+  db.query(query, [username, password], (err, results) => {
     if (err) {
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Database error during login' });
     }
 
     if (results.length > 0) {
-      // VULNERABILITY 4: Sending sensitive data in response
       res.json({ success: true, user: results[0] });
     } else {
-      res.json({ success: false, message: 'Invalid credentials' });
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
   });
 });
 
-// VULNERABILITY 5: Missing input validation and SQL injection
 app.get('/user/:id', (req, res) => {
-  const userId = req.params.id;
+  const userId = parseInt(req.params.id, 10);
 
-  const query = `SELECT * FROM users WHERE id = ${userId}`;
+  if (isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ error: 'Invalid user ID. Must be a positive integer.' });
+  }
 
-  db.query(query, (err, results) => {
+  const query = `SELECT id, username FROM users WHERE id = ?`;
+  db.query(query, [userId], (err, results) => {
     if (err) {
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Database error fetching user' });
     }
-    res.json(results);
+    if (results.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(results[0]);
   });
 });
 
-// VULNERABILITY 6: No authentication check
 app.delete('/user/:id', (req, res) => {
-  const userId = req.params.id;
+  const userId = parseInt(req.params.id, 10);
 
-  const query = `DELETE FROM users WHERE id = ${userId}`;
+  if (isNaN(userId) || userId <= 0) {
+    return res.status(400).json({ error: 'Invalid user ID. Must be a positive integer.' });
+  }
 
-  db.query(query, (err, results) => {
+  const query = `DELETE FROM users WHERE id = ?`;
+  db.query(query, [userId], (err, results) => {
     if (err) {
-      return res.status(500).json({ error: 'Database error' });
+      return res.status(500).json({ error: 'Database error deleting user' });
+    }
+    if (results.affectedRows === 0) {
+        return res.status(404).json({ message: 'User not found' });
     }
     res.json({ message: 'User deleted successfully' });
   });
 });
 
-// VULNERABILITY 7: Eval usage (Remote Code Execution)
 app.post('/calculate', (req, res) => {
-  const { expression } = req.body;
-
-  try {
-    const result = eval(expression); // Dangerous!
-    res.json({ result });
-  } catch (error) {
-    res.status(400).json({ error: 'Invalid expression' });
-  }
+  res.status(501).json({ error: 'Mathematical expression evaluation is not securely supported.' });
 });
 
-// VULNERABILITY 8: Missing CORS protection and security headers
 app.listen(3000, () => {
-  console.log('Server running on port 3000');
-  console.log('Warning: This app contains intentional vulnerabilities for testing!');
 });
 
 module.exports = app;
