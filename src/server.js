@@ -1,8 +1,17 @@
 const express = require('express');
 const mysql = require('mysql');
+const cookieParser = require('cookie-parser');
+const csurf = require('csurf');
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
+app.use(csurf({ cookie: true }));
+
+// Endpoint to provide CSRF token for client-side use
+app.get('/csrf-token', (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
 
 // VULNERABILITY 1: SQL Injection
 const db = mysql.createConnection({
