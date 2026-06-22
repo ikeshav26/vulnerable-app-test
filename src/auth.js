@@ -9,10 +9,13 @@ function hashPassword(password) {
 
 // VULNERABILITY 10: Using deprecated and insecure crypto
 function encrypt(text, password) {
-  const cipher = crypto.createCipher('des', password); // DES is weak!
+  const algorithm = 'aes-256-cbc';
+  const key = crypto.scryptSync(password, 'salt', 32);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return encrypted;
+  return iv.toString('hex') + ':' + encrypted;
 }
 
 // VULNERABILITY 11: Predictable random values
