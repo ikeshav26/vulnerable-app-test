@@ -1,8 +1,17 @@
 const express = require('express');
 const mysql = require('mysql');
+const cookieParser = require('cookie-parser');
+const csurf = require('csurf');
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
+app.use(csurf({ cookie: true }));
+
+// Endpoint to provide CSRF token for client-side use
+app.get('/csrf-token', (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
 
 // VULNERABILITY 1: SQL Injection
 const db = mysql.createConnection({
@@ -65,8 +74,16 @@ app.delete('/user/:id', (req, res) => {
 app.post('/calculate', (req, res) => {
   const { expression } = req.body;
 
+  // Sanitize input to allow only numbers and basic operators
+  const mathRegex = /^[0-9+\-*/().\s]+$/;
+  if (!mathRegex.test(expression)) {
+    return res.status(400).json({ error: 'Invalid characters in expression' });
+  }
+
   try {
-    const result = eval(expression); // Dangerous!
+    // Using Function constructor as a slightly safer alternative for simple math,
+    // though in production a dedicated math library like 'mathjs' is recommended.
+    const result = new Function(`return ${expression}`)();
     res.json({ result });
   } catch (error) {
     res.status(400).json({ error: 'Invalid expression' });

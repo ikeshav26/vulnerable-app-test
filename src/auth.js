@@ -1,16 +1,21 @@
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
-// VULNERABILITY 9: Weak hashing algorithm
+// VULNERABILITY 9: Weak hashing algorithm - FIXED: Using bcrypt for secure password hashing
 function hashPassword(password) {
-  return crypto.createHash('md5').update(password).digest('hex');
+  const saltRounds = 10; // Recommended number of salt rounds
+  return bcrypt.hashSync(password, saltRounds);
 }
 
 // VULNERABILITY 10: Using deprecated and insecure crypto
 function encrypt(text, password) {
-  const cipher = crypto.createCipher('des', password); // DES is weak!
+  const algorithm = 'aes-256-cbc';
+  const key = crypto.scryptSync(password, 'salt', 32);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
-  return encrypted;
+  return iv.toString('hex') + ':' + encrypted;
 }
 
 // VULNERABILITY 11: Predictable random values
