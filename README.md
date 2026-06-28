@@ -1,5 +1,5 @@
 # Vulnerable Test Application
-
+This is the testing application made for testing of AEGIS
 ⚠️ **WARNING: This application contains intentional security vulnerabilities for testing purposes only!**
 
 ## Purpose
