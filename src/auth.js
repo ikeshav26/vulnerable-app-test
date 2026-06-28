@@ -1,8 +1,12 @@
 const crypto = require('crypto');
+const bcrypt = require('bcrypt'); // Added for secure password hashing
 
-// VULNERABILITY 9: Weak hashing algorithm
+// VULNERABILITY 9: Weak hashing algorithm - FIXED: Using bcrypt for secure hashing
+const SALT_ROUNDS = 10; // Recommended number of salt rounds for bcrypt
+
 function hashPassword(password) {
-  return crypto.createHash('md5').update(password).digest('hex');
+  // bcrypt automatically handles salting and is designed for password hashing
+  return bcrypt.hashSync(password, SALT_ROUNDS);
 }
 
 // VULNERABILITY 10: Using deprecated and insecure crypto

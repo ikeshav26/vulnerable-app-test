@@ -1,8 +1,28 @@
 const express = require('express');
 const mysql = require('mysql');
+const cookieParser = require('cookie-parser'); // Added for CSRF protection
+const csrf = require('csurf'); // Added for CSRF protection
 
 const app = express();
 app.use(express.json());
+
+// Implement CSRF protection (addresses the listed finding)
+app.use(cookieParser());
+const csrfProtection = csrf({ cookie: true });
+
+// Expose an endpoint for clients to retrieve the CSRF token
+app.get('/csrf-token', csrfProtection, (req, res) => {
+  res.json({ csrfToken: req.csrfToken() });
+});
+
+// CSRF error handling middleware
+app.use((err, req, res, next) => {
+  if (err.code === 'EBADCSRFTOKEN') {
+    res.status(403).json({ error: 'Invalid CSRF token' });
+  } else {
+    next(err);
+  }
+});
 
 // VULNERABILITY 1: SQL Injection
 const db = mysql.createConnection({
@@ -13,7 +33,7 @@ const db = mysql.createConnection({
 });
 
 // VULNERABILITY 3: SQL Injection in login
-app.post('/login', (req, res) => {
+app.post('/login', csrfProtection, (req, res) => {
   const { username, password } = req.body;
 
   // Dangerous: Direct string concatenation in SQL query
@@ -48,7 +68,7 @@ app.get('/user/:id', (req, res) => {
 });
 
 // VULNERABILITY 6: No authentication check
-app.delete('/user/:id', (req, res) => {
+app.delete('/user/:id', csrfProtection, (req, res) => {
   const userId = req.params.id;
 
   const query = `DELETE FROM users WHERE id = ${userId}`;
@@ -62,7 +82,7 @@ app.delete('/user/:id', (req, res) => {
 });
 
 // VULNERABILITY 7: Eval usage (Remote Code Execution)
-app.post('/calculate', (req, res) => {
+app.post('/calculate', csrfProtection, (req, res) => {
   const { expression } = req.body;
 
   try {
