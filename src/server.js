@@ -2,9 +2,20 @@ const express = require('express');
 const mysql = require('mysql');
 const cookieParser = require('cookie-parser'); // Added for CSRF protection
 const csrf = require('csurf'); // Added for CSRF protection
+const math = require('mathjs'); // Added for safe expression evaluation
+const cors = require('cors'); // Added for CORS protection
+const helmet = require('helmet'); // Added for security headers
 
 const app = express();
 app.use(express.json());
+// Implement security headers using Helmet
+app.use(helmet());
+// Implement CORS protection
+// Configure CORS based on your specific needs (e.g., origin, methods)
+app.use(cors({
+  origin: 'http://localhost:8080', // Replace with your client-side origin
+  credentials: true,
+}));
 
 // Implement CSRF protection (addresses the listed finding)
 app.use(cookieParser());
@@ -25,10 +36,23 @@ app.use((err, req, res, next) => {
 });
 
 // VULNERABILITY 1: SQL Injection
+// Placeholder authentication middleware
+// In a real application, this would verify a session token or JWT
+// and populate req.user with user information (e.g., req.user = { id: 1, role: 'admin' }).
+// For this exercise, we'll simulate a user being authenticated to demonstrate authorization.
+const isAuthenticated = (req, res, next) => {
+  // *** IMPORTANT: This is a simplified placeholder. In a real application,
+  // you would implement proper authentication logic here (e.g., checking
+  // JWTs, session cookies, etc.) and retrieve actual user data. ***
+  req.user = { id: 1, username: 'demoUser', role: 'user' }; // Simulate logged-in user with ID 1
+  next(); // Proceed if user is "authenticated"
+  // If not authenticated: return res.status(401).json({ error: 'Unauthorized' });
+};
+
 const db = mysql.createConnection({
   host: 'localhost',
   user: 'root',
-  password: 'password123', // VULNERABILITY 2: Hardcoded credentials
+  password: process.env.DB_PASSWORD || 'password123', // VULNERABILITY 2: Hardcoded credentials (now using environment variable with fallback)
   database: 'users_db',
 });
 
@@ -36,17 +60,18 @@ const db = mysql.createConnection({
 app.post('/login', csrfProtection, (req, res) => {
   const { username, password } = req.body;
 
-  // Dangerous: Direct string concatenation in SQL query
-  const query = `SELECT * FROM users WHERE username = '${username}' AND password = '${password}'`;
-
-  db.query(query, (err, results) => {
+  // Use parameterized query to prevent SQL injection
+  const query = 'SELECT * FROM users WHERE username = ? AND password = ?';
+  db.query(query, [username, password], (err, results) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
 
     if (results.length > 0) {
       // VULNERABILITY 4: Sending sensitive data in response
-      res.json({ success: true, user: results[0] });
+      // Only send non-sensitive user data
+      const { password, ...safeUser } = results[0];
+      res.json({ success: true, user: safeUser });
     } else {
       res.json({ success: false, message: 'Invalid credentials' });
     }
@@ -57,9 +82,15 @@ app.post('/login', csrfProtection, (req, res) => {
 app.get('/user/:id', (req, res) => {
   const userId = req.params.id;
 
-  const query = `SELECT * FROM users WHERE id = ${userId}`;
+  // Input validation: Ensure userId is an integer
+  if (!Number.isInteger(Number(userId))) {
+    return res.status(400).json({ error: 'Invalid user ID format' });
+  }
 
-  db.query(query, (err, results) => {
+  // Use parameterized query to prevent SQL injection
+  const query = 'SELECT * FROM users WHERE id = ?';
+
+  db.query(query, [userId], (err, results) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -68,12 +99,26 @@ app.get('/user/:id', (req, res) => {
 });
 
 // VULNERABILITY 6: No authentication check
-app.delete('/user/:id', csrfProtection, (req, res) => {
+// VULNERABILITY 6: No authentication check (now with authentication and authorization)
+app.delete('/user/:id', csrfProtection, isAuthenticated, (req, res) => {
   const userId = req.params.id;
 
-  const query = `DELETE FROM users WHERE id = ${userId}`;
+  // Input validation: Ensure userId is an integer
+  if (!Number.isInteger(Number(userId))) {
+    return res.status(400).json({ error: 'Invalid user ID format' });
+  }
 
-  db.query(query, (err, results) => {
+  // Authorization check: A user can only delete their own account
+  // or an admin role could delete any account. This example only allows
+  // the authenticated user (simulated as ID 1) to delete their own ID.
+  if (req.user.id !== Number(userId) && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden: You can only delete your own account (or require admin role).' });
+  }
+
+  // Use parameterized query to prevent SQL injection
+  const query = 'DELETE FROM users WHERE id = ?';
+
+  db.query(query, [userId], (err, results) => {
     if (err) {
       return res.status(500).json({ error: 'Database error' });
     }
@@ -86,10 +131,14 @@ app.post('/calculate', csrfProtection, (req, res) => {
   const { expression } = req.body;
 
   try {
-    const result = eval(expression); // Dangerous!
+    // Safely evaluate mathematical expressions using mathjs
+    // mathjs's evaluate function is much safer than eval().
+    // Remember to install mathjs: npm install mathjs
+    const result = math.evaluate(expression);
     res.json({ result });
   } catch (error) {
-    res.status(400).json({ error: 'Invalid expression' });
+    // mathjs will throw an error for invalid or dangerous expressions
+    res.status(400).json({ error: 'Invalid or malformed expression' });
   }
 });
 
