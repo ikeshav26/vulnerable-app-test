@@ -2,6 +2,7 @@ const express = require('express');
 const mysql = require('mysql');
 const cookieParser = require('cookie-parser'); // Added for CSRF protection
 const csrf = require('csurf'); // Added for CSRF protection
+const math = require('mathjs'); // Added for safe expression evaluation
 
 const app = express();
 app.use(express.json());
@@ -81,14 +82,16 @@ app.delete('/user/:id', csrfProtection, (req, res) => {
   });
 });
 
-// VULNERABILITY 7: Eval usage (Remote Code Execution)
+// FIX: VULNERABILITY 7: Eval usage (Remote Code Execution) - Replaced with safe mathjs evaluation
 app.post('/calculate', csrfProtection, (req, res) => {
   const { expression } = req.body;
 
   try {
-    const result = eval(expression); // Dangerous!
+    // Use math.evaluate from mathjs library for safe expression evaluation
+    const result = math.evaluate(expression);
     res.json({ result });
   } catch (error) {
+    // Catch errors from math.evaluate, which can occur for invalid expressions
     res.status(400).json({ error: 'Invalid expression' });
   }
 });
