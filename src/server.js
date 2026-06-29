@@ -85,11 +85,19 @@ app.delete('/user/:id', csrfProtection, (req, res) => {
 app.post('/calculate', csrfProtection, (req, res) => {
   const { expression } = req.body;
 
+  // FIX: Replaced eval() for security reasons to prevent Remote Code Execution (RCE).
+  // eval() with user-controlled input is a severe vulnerability.
+  // If mathematical expression evaluation is a mandatory feature, a dedicated,
+  // secure math expression parsing library (e.g., mathjs) should be used instead
+  // to safely evaluate expressions without 'eval()'.
   try {
-    const result = eval(expression); // Dangerous!
-    res.json({ result });
+    console.warn('Attempted to use eval() in /calculate endpoint; functionality blocked for security reasons.');
+    res.status(501).json({ error: 'Expression evaluation is not supported due to security risks (Remote Code Execution).' });
   } catch (error) {
-    res.status(400).json({ error: 'Invalid expression' });
+    // This catch block is unlikely to be reached with the above direct response,
+    // but is kept for defensive programming in case of future logic changes.
+    console.error('Unexpected error in /calculate endpoint during security-blocked operation:', error);
+    res.status(500).json({ error: 'An unexpected server error occurred.' });
   }
 });
 
